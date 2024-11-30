@@ -1,117 +1,89 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, { useEffect } from 'react';
+import { StyleSheet, View, Text, Button, Alert } from 'react-native';
+import InAppBrowser from 'react-native-inappbrowser-reborn';
+import { Linking } from 'react-native';
+import queryString from 'query-string';
+import axios from 'axios';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+import { getDeepLink } from './libs/utilities';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const serverIp = '192.168.10.52';
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+const authUrl = `http://${serverIp}:8080/app-login?appName=app1`;
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+const App: React.FC = () => {
+  useEffect(() => {
+    const handleDeepLink = async (event: { url: string }) => {
+      const url = event.url;
+      if (url) {
+        const parsed = queryString.parseUrl(url);
+        const code = parsed.query.code;
+        console.log('Token response:', code);
+        if (code) {
+          try {
+            const response = await axios.post(`http://${serverIp}:8080/get-token`, { code });
+            console.log('Token response:', response.data);
+            Alert.alert('Token Received', `Token: ${JSON.stringify(response.data)}`);
+          } catch (error) {
+            console.error('Error fetching token:', error.message);
+            Alert.alert('Error', 'Failed to fetch token');
+          }
+        } else {
+          console.log('No code parameter in deep link');
+        }
+      }
+    };
 
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+    // Add listener for deep links
+    const subscription = Linking.addListener('url', handleDeepLink);
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+    // Clean up listener
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  const openInAppBrowser = async () => {
+    try {
+      if (await InAppBrowser.isAvailable()) {
+        await InAppBrowser.openAuth(authUrl, getDeepLink(), {
+          dismissButtonStyle: 'cancel',
+          preferredBarTintColor: '#453AA4',
+          preferredControlTintColor: 'white',
+          readerMode: false,
+          animated: true,
+          modalPresentationStyle: 'fullScreen',
+          modalTransitionStyle: 'coverVertical',
+          enableBarCollapsing: true,
+        });
+      } else {
+        Alert.alert('Error', 'InAppBrowser is not supported on your device.');
+      }
+    } catch (error) {
+      Alert.alert('Error', `Something went wrong: ${error.message}`);
+    }
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <Text style={styles.title}>React Native App with Auth BFF</Text>
+      <Button title="Login" onPress={openInAppBrowser} />
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 20,
   },
 });
 
